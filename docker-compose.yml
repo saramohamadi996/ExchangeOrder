@@ -1,0 +1,88 @@
+version: '2'
+services:
+  # PHP Service
+  ExchangeOrder-php:
+    build:
+      context: .
+      dockerfile: app.dockerfile
+    container_name: ExchangeOrder-php
+    tty: true
+    restart: always
+    environment:
+      SERVICE_NAME: ExchangeOrder-php
+      SERVICE_TAGS: dev
+    working_dir: /var/www/server
+    volumes:
+      - ./laravel:/var/www/server
+      - ./php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - ExchangeOrder-network
+    depends_on:
+      - ExchangeOrder-mysql
+    command: /bin/bash -c "php-fpm | /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf"
+  # Nginx Service
+  ExchangeOrder-nginx:
+    build:
+      context: ./
+      dockerfile: webserver.dockerfile
+    container_name: ExchangeOrder-nginx
+    tty: true
+    restart: always
+    ports:
+      - "8088:80"
+    volumes:
+      - ./laravel:/var/www/server
+    depends_on:
+      - ExchangeOrder-php
+    networks:
+      - ExchangeOrder-network
+
+  # MySQL Service
+  ExchangeOrder-mysql:
+    image: mysql:8.0
+    container_name: ExchangeOrder-mysql
+    restart: always
+    tty: true
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+    ports:
+      - "33068:3308"
+    volumes:
+      - ExchangeOrder_mysql:/var/lib/mysql/
+      - ./dbs:/docker-entrypoint-initdb.d
+      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+    networks:
+      - ExchangeOrder-network
+
+  ExchangeOrder-phpmyadmin:
+    depends_on:
+      - ExchangeOrder-mysql
+    image: phpmyadmin/phpmyadmin
+    container_name: ExchangeOrder-phpmyadmin
+    links:
+      - ExchangeOrder-mysql
+    environment:
+      PMA_HOST: ExchangeOrder-mysql
+      MYSQL_ROOT_PASSWORD: password
+    restart: always
+    ports:
+      - "8080:80"
+    networks:
+      - ExchangeOrder-network
+#redis
+  ExchangeOrder-redis:
+    image: redis:latest
+    container_name: ExchangeOrder-redis
+    restart: always
+    volumes:
+      - ./redis/data:/data
+    ports:
+      - "6369:6379"
+
+networks:
+  ExchangeOrder-network:
+    driver: bridge
+
+volumes:
+  ExchangeOrder_mysql:
+    driver: local
